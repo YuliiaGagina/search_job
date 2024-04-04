@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Job from "../../assets/job.jpg";
 import Image from "next/image";
 import Link from "next/link";
+import useSWR from "swr";
 
 interface JobData {
   employer_name: string;
@@ -48,12 +49,20 @@ interface JobData {
   job_naics_name: string;
 }
 
+const fetcher = async (url: string) => {
+  const response = await axios.get(url, {
+    headers: {
+      "X-RapidAPI-Key": process.env.NEXT_PUBLIC_API_KEY,
+      "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+    },
+  });
+  return response.data.data;
+};
+
 export default function Jobs() {
   const router = useRouter();
 
   const [profession, setProfession] = useState("");
-  const [jobs, setJobs] = useState<JobData[]>([]);
-  console.log(jobs);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(9);
@@ -62,6 +71,13 @@ export default function Jobs() {
     setProfession(e.target.value);
   };
 
+  const { data: jobs, error, mutate } = useSWR(
+    profession ? `${process.env.NEXT_PUBLIC_API_URL}?query=${profession}` : null,
+    fetcher
+  );
+
+    
+
   useEffect(() => {
     const userData = localStorage.getItem("userData");
     if (userData) {
@@ -69,7 +85,8 @@ export default function Jobs() {
       if (desiredJob) {
         setProfession(desiredJob);
 
-        fetchData(desiredJob, 1);
+       setCurrentPage(1);
+    mutate();
         router.push(`/jobs?profession=${desiredJob}`);
       }
     }
@@ -78,50 +95,22 @@ export default function Jobs() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    setCurrentPage(1);
-    fetchData(profession.trim(), 1);
+ setCurrentPage(1);
+    mutate();
     router.push(`/jobs?profession=${profession}`);
   };
 
-  const fetchData = async (query: string , page: number) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(
-        'https://jsearch.p.rapidapi.com/search',
-        {
-          params: {
-            query,
-            page: String(page),
-            num_pages: "1",
-          },
-          headers: {
-            "X-RapidAPI-Key":
-              "7a63ed2dabmshe05a7253b70db32p16f46bjsn25c8952e5abc",
-            "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-          },
-        }
-      );
-      setJobs(response.data.data);
-    } catch (error) {
-      console.error("Error fetching job data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      fetchData(profession.trim(), nextPage);
-    }
+    setCurrentPage((prev) => prev + 1);
+    mutate();
   };
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
-      const prevPage = currentPage - 1;
-      setCurrentPage(prevPage);
-      fetchData(profession.trim(), prevPage);
+       if (currentPage > 1) {
+      setCurrentPage((prev) => prev - 1);
+      mutate(); 
     }
   };
 
@@ -147,10 +136,10 @@ export default function Jobs() {
       </form>
 
       {!loading && jobs.length === 0 && <div>No jobs found</div>}
-      {jobs.length > 0 && (
+      {jobs && (
         <div>
-          <ul className="flex gap-5 container:lg mx-auto flex-wrap md:px-28 xs:px-4 sm:px-8  mb-9  xs:mx-auto">
-            {jobs.map((job, index) => (
+          <ul className="flex gap-5 container:lg mx-auto flex-wrap   mb-9  ">
+            {jobs.map((job :JobData , index : string) => (
               <li className="ease-in-out duration-500" key={index}>
                 <div className="shadow-lg w-64 h-52 overflow-hidden rounded-md flex-column flex-wrap justify-center   relative">
                   {job.employer_logo ? (
@@ -158,7 +147,7 @@ export default function Jobs() {
                       className="w-full h-full hover:scale-125 ease-in-out duration-500   rounded-md shadow-xl shadow-cyan-500/50 block"
                       width={100}
                       height={100}
-                      src={job.employer_logo}
+                      src={job.employer_logo }
                       alt={job.employer_name}
                     />
                   ) : (
@@ -186,7 +175,7 @@ export default function Jobs() {
           </ul>
         </div>
       )}
-      {jobs.length > 0 && (
+      {jobs && (
         <div className="bg-slate-100 w-48 gap-2  mx-auto flex justify-center items-center py-2 px-2 rounded-full">
           <button
             className="page-item py-1 px-2 border border-2 bg-gray-200  rounded-full border-gray-400 flex items-center justify-center"

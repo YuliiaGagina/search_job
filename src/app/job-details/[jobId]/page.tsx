@@ -2,8 +2,14 @@
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 import { useState, useEffect } from "react";
+import useSWR from 'swr';
 import axios from "axios";
 import Link from "next/link";
+
+interface JobOption {
+  publisher: string;
+  apply_link: string;
+}
 
 interface JobDetails {
   employer_name: string;
@@ -12,7 +18,7 @@ interface JobDetails {
   job_min_salary: number | null;
   job_max_salary: number | null;
   job_is_remote: boolean;
-  apply_options: Array<{ publisher: string; apply_link: string }>;
+  apply_options: JobOption[]
 }
 
 type Props = {
@@ -21,41 +27,27 @@ type Props = {
   };
 };
 
-export default function JobDetailsForOne({ params }: Props) {
-  const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+const fetcher = async (url: string) => {
+  const response = await axios.get(url, {
+    headers: {
+      'X-RapidAPI-Key': process.env.NEXT_PUBLIC_API_KEY,
+      'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+    },
+  });
+  return response.data.data[0];
+};
+
+export default function JobDetailsForOne ({ params }: Props) {
+ 
   const [successMessage, setSuccessMessage] = useState<string>("");
-  console.log(jobDetails);
-  useEffect(() => {
-    const fetchJobDetails = async () => {
-      try {
-        const response = await axios.get(
-          "https://jsearch.p.rapidapi.com/job-details",
-          {
-            params: {
-              job_id: decodeURIComponent(params.jobId),
-              extended_publisher_details: "false",
-            },
-            headers: {
-              "X-RapidAPI-Key":
-                "7a63ed2dabmshe05a7253b70db32p16f46bjsn25c8952e5abc",
-              "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-            },
-          }
-        );
-        console.log(response.data.data[0]);
 
-        setJobDetails(response.data.data[0]);
-      } catch (error) {
-        console.error(error);
-      }
-    };
 
-    fetchJobDetails();
-  }, [params.jobId]);
+    const { data: jobDetails, error } = useSWR(
+    `${process.env.NEXT_PUBLIC_API_URL_DETAIL}?job_id=${decodeURIComponent(params.jobId)}`,
+    fetcher
+  );
 
-  if (parseInt(params.jobId) > 1000) {
-    notFound();
-  }
+ 
 
   const addToFavorites = () => {
     if (jobDetails) {
@@ -80,7 +72,7 @@ export default function JobDetailsForOne({ params }: Props) {
         <p>{jobDetails.job_description}</p>
         <p>Apply options</p>
         <ul className="flex direction-col gap-5">
-          {jobDetails.apply_options.map((option) => (
+          {jobDetails.apply_options.map((option  : JobOption ) => (
             <Link
               className="underline"
               key={option.publisher}
